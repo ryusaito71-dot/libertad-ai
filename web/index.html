@@ -190,6 +190,27 @@
       <h2 id="intakeResultTitle"></h2>
       <div id="intakeResultBody"></div>
     </div>
+
+    <!-- しおり生成カード -->
+    <div class="card">
+      <h2>しおりを作る（marketing）</h2>
+      <p>PM案件ファイルをもとに、成果物のたたき台（しおり.md）を生成します。</p>
+
+      <label for="shioriCaseId">対象ケース番号</label>
+      <input id="shioriCaseId" type="text" placeholder="例: CASE_002" value="CASE_002" />
+      <div class="hint">company/pm/CASE_XXX.md を読み込みます。未入力時は CASE_002 を使います。</div>
+
+      <div class="btn-row">
+        <button id="shioriBtn" class="primary">しおりを生成する</button>
+        <span class="sending-indicator" id="shioriIndicator">生成中...</span>
+      </div>
+    </div>
+
+    <!-- しおり生成結果カード -->
+    <div class="result-card" id="shioriResultCard">
+      <h2 id="shioriResultTitle"></h2>
+      <div id="shioriResultBody"></div>
+    </div>
   </div>
 
   <script>
@@ -335,6 +356,57 @@
           `<p class="error-msg">サーバーへの接続に失敗しました: ${e.message}</p>`;
       } finally {
         sendBtn.disabled = false;
+        indicator.style.display = "none";
+      }
+    });
+    // ---- しおり生成 ----
+
+    document.getElementById("shioriBtn").addEventListener("click", async () => {
+      const rawId = document.getElementById("shioriCaseId").value.trim();
+      const caseId = rawId || "CASE_002";
+
+      const btn = document.getElementById("shioriBtn");
+      const indicator = document.getElementById("shioriIndicator");
+      const card = document.getElementById("shioriResultCard");
+
+      btn.disabled = true;
+      indicator.style.display = "inline";
+      card.style.display = "none";
+
+      try {
+        const res = await fetch("/api/generate-shiori", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caseId })
+        });
+        const json = await res.json();
+
+        card.className = "result-card " + (json.success ? "success" : "error");
+        card.style.display = "block";
+
+        if (json.success) {
+          document.getElementById("shioriResultTitle").textContent = "しおり生成完了";
+          document.getElementById("shioriResultBody").innerHTML = `
+            <div class="case-id">${json.caseId}</div>
+            <ul class="result-list">
+              <li><span class="label">元案件</span>${json.caseId}</li>
+              <li><span class="label">出力先</span>${json.outputFile}</li>
+              <li><span class="label">メッセージ</span>${json.message}</li>
+            </ul>
+          `;
+        } else {
+          document.getElementById("shioriResultTitle").textContent = "生成失敗";
+          document.getElementById("shioriResultBody").innerHTML =
+            `<p class="error-msg">${json.message || "不明なエラーが発生しました"}</p>`;
+        }
+      } catch (e) {
+        card.className = "result-card error";
+        card.style.display = "block";
+        document.getElementById("shioriResultTitle").textContent = "通信エラー";
+        document.getElementById("shioriResultBody").innerHTML =
+          `<p class="error-msg">サーバーへの接続に失敗しました: ${e.message}</p>`;
+      } finally {
+        btn.disabled = false;
         indicator.style.display = "none";
       }
     });
