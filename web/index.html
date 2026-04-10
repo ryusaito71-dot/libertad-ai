@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI会社 受付プロトタイプ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+      color: #222;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 28px;
+    }
+    h2 {
+      font-size: 20px;
+      margin-top: 0;
+    }
+    label {
+      display: block;
+      margin: 16px 0 8px;
+      font-weight: 600;
+    }
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #cfd6e4;
+      border-radius: 10px;
+      font-size: 14px;
+      background: #fff;
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 10px;
+      background: #111827;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.92;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 180px;
+    }
+    .hint {
+      color: #555;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>AI会社 受付プロトタイプ</h1>
+      <p>依頼をそのまま受けずに、まず構造化してから社内に回すための最小版です。</p>
+
+      <label for="request">依頼内容</label>
+      <textarea id="request" placeholder="例: 京都旅行のしおりを家族向けに作って。子連れで移動しやすい感じにしたい。"></textarea>
+
+      <div class="row">
+        <div>
+          <label for="purpose">目的</label>
+          <input id="purpose" type="text" placeholder="例: 家族全員が見やすい旅程にしたい" />
+        </div>
+        <div>
+          <label for="output">欲しい成果物</label>
+          <input id="output" type="text" placeholder="例: A4 1-2枚の旅程表" />
+        </div>
+      </div>
+
+      <label for="constraints">制約条件</label>
+      <textarea id="constraints" placeholder="例: 新幹線利用、ベビーカー前提、予算3万円以内"></textarea>
+
+      <button id="buildBtn">依頼を整形する</button>
+      <div class="hint">ボタンを押すと、表面依頼、真の課題、回すべき部署、仮判定を出します。</div>
+    </div>
+
+    <div class="card">
+      <h2>整形結果</h2>
+      <pre id="result">ここに結果が出ます</pre>
+      <button id="copyBtn">結果をコピー</button>
+    </div>
+  </div>
+
+  <script>
+    function includesAny(text, words) {
+      return words.some(word => text.includes(word));
+    }
+
+    function inferTrueIssue(request, purpose) {
+      const text = `${request} ${purpose}`;
+
+      if (purpose.trim()) {
+        return purpose.trim();
+      }
+      if (includesAny(text, ["比較", "選ぶ", "候補", "どれ"])) {
+        return "比較検討と選定判断をしたい";
+      }
+      if (includesAny(text, ["要約", "整理", "一覧", "まとめ"])) {
+        return "散らばった情報を整理して見やすくしたい";
+      }
+      if (includesAny(text, ["投稿", "文案", "伝わる", "魅力"])) {
+        return "相手に伝わる表現に整えたい";
+      }
+      if (includesAny(text, ["旅行", "しおり", "予定", "段取り"])) {
+        return "段取りを見える化して実行しやすくしたい";
+      }
+      return "依頼の目的を追加確認したい";
+    }
+
+    function inferDepartment(request, output) {
+      const text = `${request} ${output}`;
+
+      if (includesAny(text, ["比較", "調査", "競合", "市場", "規制", "法律"])) {
+        return "リサーチ部門";
+      }
+      if (includesAny(text, ["要約", "整理", "一覧", "議事録", "タスク"])) {
+        return "秘書部門";
+      }
+      if (includesAny(text, ["資料", "しおり", "構成", "投稿", "文案", "スライド"])) {
+        return "制作部門";
+      }
+      return "受付で追加壁打ち";
+    }
+
+    function inferVerdict(request, constraints) {
+      const text = `${request} ${constraints}`;
+
+      if (includesAny(text, ["契約書レビュー", "医療判断", "税務判断", "違法", "アカウント自動化"])) {
+        return "要確認";
+      }
+      if (includesAny(text, ["500ページ", "完璧に", "すべて", "超詳細"])) {
+        return "条件付き受注";
+      }
+      return "通常受注候補";
+    }
+
+    document.getElementById("buildBtn").addEventListener("click", () => {
+      const request = document.getElementById("request").value.trim();
+      const purpose = document.getElementById("purpose").value.trim();
+      const output = document.getElementById("output").value.trim();
+      const constraints = document.getElementById("constraints").value.trim();
+
+      const trueIssue = inferTrueIssue(request, purpose);
+      const department = inferDepartment(request, output);
+      const verdict = inferVerdict(request, constraints);
+
+      const result = [
+        "受付整形結果",
+        "",
+        `表面依頼: ${request || "未入力"}`,
+        `真の課題: ${trueIssue}`,
+        `希望成果物: ${output || "未入力"}`,
+        `制約条件: ${constraints || "特になし"}`,
+        `推奨部署: ${department}`,
+        `仮判定: ${verdict}`
+      ].join("\n");
+
+      document.getElementById("result").textContent = result;
+    });
+
+    document.getElementById("copyBtn").addEventListener("click", async () => {
+      const text = document.getElementById("result").textContent;
+      await navigator.clipboard.writeText(text);
+      alert("コピーしました");
+    });
+  </script>
+</body>
+</html>
