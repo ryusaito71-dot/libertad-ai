@@ -10,7 +10,19 @@
       "Bash(pkill -f \"node server.js\")",
       "Bash(node:*)",
       "Bash(python3 -c ':*)",
-      "Bash(taskkill /F /IM node.exe)"
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(curl -s -X POST http://localhost:3000/api/generate-shiori -H 'Content-Type: application/json' -d '{\"caseId\":\"CASE_002\"}')",
+      "Bash(netstat -ano)",
+      "Bash(awk '{print $5}')",
+      "Bash(kill 25268)",
+      "Bash(powershell:*)",
+      "Bash(curl:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(taskkill /F /PID 33704)",
+      "Bash(cmd /c \"taskkill /F /PID 33704\")",
+      "Bash(wmic process:*)",
+      "Bash(kill -9 33704)",
+      "Bash(kill -9 1202)"
     ]
   }
 }

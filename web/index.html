@@ -193,12 +193,12 @@
 
     <!-- しおり生成カード -->
     <div class="card">
-      <h2>しおりを作る（marketing）</h2>
-      <p>PM案件ファイルをもとに、成果物のたたき台（しおり.md）を生成します。</p>
+      <h2>しおりを作る（research → marketing）</h2>
+      <p>PM案件をもとに research 依頼票・調査結果を生成し、それを踏まえたしおりのたたき台を作ります。</p>
 
       <label for="shioriCaseId">対象ケース番号</label>
       <input id="shioriCaseId" type="text" placeholder="例: CASE_002" value="CASE_002" />
-      <div class="hint">company/pm/CASE_XXX.md を読み込みます。未入力時は CASE_002 を使います。</div>
+      <div class="hint">company/pm/CASE_XXX.md を読み込み、research/REQUESTS・RESULTS・marketing/shiori.md を順に生成します。</div>
 
       <div class="btn-row">
         <button id="shioriBtn" class="primary">しおりを生成する</button>
@@ -385,12 +385,14 @@
         card.style.display = "block";
 
         if (json.success) {
-          document.getElementById("shioriResultTitle").textContent = "しおり生成完了";
+          document.getElementById("shioriResultTitle").textContent = "しおり生成完了（research → marketing）";
           document.getElementById("shioriResultBody").innerHTML = `
             <div class="case-id">${json.caseId}</div>
             <ul class="result-list">
               <li><span class="label">元案件</span>${json.caseId}</li>
-              <li><span class="label">出力先</span>${json.outputFile}</li>
+              <li><span class="label">research依頼票</span>${json.researchRequestFile}</li>
+              <li><span class="label">research結果</span>${json.researchResultFile}</li>
+              <li><span class="label">しおり出力先</span>${json.outputFile}</li>
               <li><span class="label">メッセージ</span>${json.message}</li>
             </ul>
           `;

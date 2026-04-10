@@ -13,6 +13,8 @@ const PM_DIR = path.join(__dirname, "company", "pm");
 const PM_QUEUE = path.join(__dirname, "company", "pm", "QUEUE.md");
 const MARKETING_DIR = path.join(__dirname, "company", "marketing");
 const SHIORI_PATH = path.join(MARKETING_DIR, "shiori.md");
+const RESEARCH_REQUESTS_DIR = path.join(__dirname, "company", "research", "REQUESTS");
+const RESEARCH_RESULTS_DIR = path.join(__dirname, "company", "research", "RESULTS");
 
 // ---- ユーティリティ ----
 
@@ -206,6 +208,220 @@ function appendToQueue(num, data, dateStr) {
   fs.appendFileSync(PM_QUEUE, row, "utf8");
 }
 
+// ---- research ロジック ----
+
+/**
+ * company/research/REQUESTS/CASE_XXX.md を生成する
+ */
+function createResearchRequest(caseId, fields, dateStr) {
+  const filePath = path.join(RESEARCH_REQUESTS_DIR, `${caseId}.md`);
+  const { title, request, purpose, output, constraints } = fields;
+
+  const content = `# research依頼票：${caseId}
+
+## 基本情報
+
+- 案件番号：${caseId}
+- 依頼日時：${dateStr}
+- 次に返す先：marketing
+
+## 調査目的
+
+${purpose || "（PM案件より：" + (request || "未記載") + "）"}
+
+## 調査対象
+
+${title || request || "（未指定）"}
+
+## 確認したい論点
+
+- 依頼内容に関連する主要スポット・施設の概要
+- 移動手段・アクセスの選択肢と注意点
+- 対象者（${constraints || "依頼者"}）に適した条件
+- 食事・宿泊に関する選択肢
+- 現地での注意事項・トラブル回避ポイント
+
+## 制約条件
+
+${constraints || "特になし"}
+
+## 参照元PM案件
+
+company/pm/${caseId}.md
+
+## 次に返す先
+
+marketing（research結果をもとにしおりを生成する）
+`;
+
+  fs.mkdirSync(RESEARCH_REQUESTS_DIR, { recursive: true });
+  fs.writeFileSync(filePath, content, "utf8");
+  return filePath;
+}
+
+/**
+ * 旅行案件の仮調査結果を生成する
+ */
+function buildTravelResearchResult(request, constraints) {
+  const text = `${request} ${constraints}`;
+
+  const GENERIC = new Set(["家族", "一人", "二人", "友人", "夫婦", "仲間", "同僚", "カップル"]);
+  const destCandidates = [...request.matchAll(/の([^\s　の]{2,5})(旅行|観光)/g)]
+    .map(m => m[1])
+    .filter(name => !GENERIC.has(name));
+  const dest = destCandidates.length > 0 ? destCandidates[destCandidates.length - 1] : "目的地";
+
+  const hasKids = /こども|子ども|子供|ベビー|幼児|赤ちゃん/.test(text);
+  const kidAges = constraints.match(/\d+歳/g) || [];
+
+  const lines = [];
+
+  lines.push(`## 候補スポット（仮・要追加確認）`);
+  lines.push("");
+  if (dest === "横浜") {
+    lines.push("- **よこはまアンパンマンこどもミュージアム** ── 乳幼児向け、屋内、雨天可");
+    lines.push("  - 未確認：混雑状況（GW期間は事前予約推奨の可能性あり）");
+    lines.push("- **八景島シーパラダイス** ── 水族館＋遊園地、広い、半屋外");
+    lines.push("  - 未確認：ベビーカー貸出の有無、授乳室の場所");
+    lines.push("- **みなとみらい** ── コスモワールド観覧車、ショッピング施設、海沿い散策");
+    lines.push("  - 未確認：GW期間の混雑ピーク時間帯");
+    lines.push("- **山下公園・赤レンガ倉庫** ── 広い公園、屋外、授乳室は近くの施設を要確認");
+    lines.push("- **横浜中華街** ── 飲食店多数、ベビーカーでの通行は混雑時に困難");
+    lines.push("  - 未確認：GW期間の混雑状況");
+  } else {
+    lines.push(`- ${dest}の主要観光スポット（未確認・要リサーチ追加）`);
+    lines.push(`  - 未確認：乳幼児向け施設の詳細`);
+  }
+  lines.push("");
+
+  lines.push(`## 移動観点（仮）`);
+  lines.push("");
+  if (dest === "横浜") {
+    lines.push("- 都内からの場合：東急東横線・みなとみらい線、JR京浜東北線など複数ルートあり");
+    lines.push("- ベビーカー利用時：エレベーター完備駅の事前確認を推奨");
+    lines.push("- 横浜市内移動：みなとみらい線1日乗車券が便利な場合あり");
+    lines.push("- 未確認：出発地（依頼に記載なし）。確認後に最適ルートを追記");
+    lines.push("- 未確認：レンタカー利用希望の有無");
+  } else {
+    lines.push(`- ${dest}への主要交通手段（未確認）`);
+    lines.push("- 未確認：出発地（依頼に記載なし）");
+  }
+  lines.push("");
+
+  if (hasKids) {
+    lines.push(`## 子連れ観点（仮）`);
+    lines.push("");
+    if (kidAges.length > 0) {
+      lines.push(`- 対象年齢：${kidAges.join("・")}のこども`);
+    }
+    lines.push("- 1〜2歳は歩行不安定なため、ベビーカーまたは抱っこ紐の利用が前提");
+    lines.push("- 授乳・おむつ替えスペースの事前確認が必要（施設ごとに異なる）");
+    lines.push("- 長距離移動は午前のうちに終わらせると昼寝リズムを保ちやすい");
+    lines.push("- 未確認：ベビーカー持参の有無（移動計画に大きく影響）");
+    lines.push("- 未確認：食事制限・アレルギーの有無");
+    lines.push("");
+  }
+
+  lines.push(`## 食事観点（仮）`);
+  lines.push("");
+  if (dest === "横浜") {
+    lines.push("- 横浜中華街：バリエーション豊富だがGW期間は大混雑、早めの入店推奨");
+    lines.push("- みなとみらい周辺：ショッピングモール内のフードコートが子連れに使いやすい");
+    lines.push("- 赤レンガ倉庫周辺：カフェ・レストラン複数、テラス席あり（天候次第）");
+    lines.push("- 未確認：アレルギー・食事制限の有無（確認後に候補を絞り込む）");
+  } else {
+    lines.push(`- ${dest}周辺の食事スポット（未確認・要リサーチ追加）`);
+    lines.push("- 未確認：アレルギー・食事制限の有無");
+  }
+  lines.push("");
+
+  lines.push(`## 注意点（仮）`);
+  lines.push("");
+  lines.push("- ゴールデンウィーク期間は全国的に観光地の混雑がピーク。入場待ち・駐車場待ちを想定する");
+  lines.push("- 人気スポットの事前予約（チケット・レストラン）を強く推奨");
+  if (hasKids) {
+    lines.push("- 乳幼児連れの場合、予定に余白を多めに設けることを推奨（急な体調変化等）");
+    lines.push("- 夕方以降は子どもの疲れがピークになりやすい。宿への帰着時間に余裕を");
+  }
+  lines.push("- 未確認：宿泊施設（予約済みかどうか・エリア）。旅程に大きく影響する");
+  lines.push("- 未確認：旅行日程（出発日・帰着日）");
+  lines.push("");
+
+  lines.push(`> ※ この調査結果は PM案件の情報のみをもとに構成した仮情報です。`);
+  lines.push(`> 実際の調査（Web検索・現地確認等）を経て内容を更新してください。`);
+  lines.push(`> 「未確認」と記載した項目は依頼者への確認または追加調査が必要です。`);
+
+  return lines.join("\n");
+}
+
+/**
+ * company/research/RESULTS/CASE_XXX.md を生成する
+ */
+function createResearchResult(caseId, fields, dateStr) {
+  const filePath = path.join(RESEARCH_RESULTS_DIR, `${caseId}.md`);
+  const { request, purpose, constraints } = fields;
+
+  const text = `${request} ${fields.output}`;
+  const isTravel = /旅行|旅程|しおり|観光/.test(text);
+
+  let bodyContent;
+  if (isTravel) {
+    bodyContent = buildTravelResearchResult(request || "", constraints || "");
+  } else {
+    bodyContent = `## 調査結果（仮）\n\n- 依頼の種類から自動生成できませんでした。手動でリサーチ結果を記入してください。\n`;
+  }
+
+  const content = `# research結果：${caseId}
+
+## メタ情報
+
+- 案件番号：${caseId}
+- 生成日時：${dateStr}
+- 調査種別：仮想内製生成（外部AI連携なし）
+- ステータス：仮情報・要追加確認
+
+## 調査対象
+
+${request || "（未記載）"}
+
+## 調査目的
+
+${purpose || "（未記載）"}
+
+---
+
+${bodyContent}
+`;
+
+  fs.mkdirSync(RESEARCH_RESULTS_DIR, { recursive: true });
+  fs.writeFileSync(filePath, content, "utf8");
+  return filePath;
+}
+
+/**
+ * research結果ファイルから主要セクションを抽出する
+ */
+function parseResearchResultFile(content) {
+  const result = {};
+
+  // ## セクションを抽出するヘルパー
+  function extractSection(heading) {
+    const idx = content.indexOf(`## ${heading}`);
+    if (idx === -1) return "";
+    const after = content.slice(idx + `## ${heading}`.length);
+    const nextSection = after.search(/\n## /);
+    return (nextSection === -1 ? after : after.slice(0, nextSection)).trim();
+  }
+
+  result.spots    = extractSection("候補スポット（仮・要追加確認）");
+  result.transport = extractSection("移動観点（仮）");
+  result.kids     = extractSection("子連れ観点（仮）");
+  result.food     = extractSection("食事観点（仮）");
+  result.cautions = extractSection("注意点（仮）");
+
+  return result;
+}
+
 // ---- しおり生成ロジック ----
 
 /**
@@ -356,20 +572,119 @@ function buildNextQuestions(request, purpose, output, constraints) {
 }
 
 /**
- * company/marketing/shiori.md の内容を生成する
+ * research結果をもとに旅程たたき台を生成する
  */
-function generateShioriContent(caseId, fields, dateStr) {
-  const { title, request, purpose, output, constraints } = fields;
+function buildDraftContentFromResearch(pmFields, researchFields, dateStr) {
+  const { request, constraints } = pmFields;
+  const text = `${request} ${pmFields.output}`;
+
+  const lines = [];
+
+  if (!/旅行|旅程|しおり|観光/.test(text)) {
+    lines.push("- 依頼の種類から構成を自動判定できませんでした。");
+    lines.push("- research結果を参照しながら、具体的な内容を組み立ててください。");
+    return lines.join("\n");
+  }
+
+  const normalizedReq = toHalfWidth(request || "");
+  const daysMatch = normalizedReq.match(/(\d+)泊(\d+)日/);
+  const days = daysMatch ? parseInt(daysMatch[2], 10) : null;
+
+  lines.push("### 旅程骨子（research結果をもとにしたたたき台）");
+  lines.push("");
+
+  if (days) {
+    for (let i = 1; i <= days; i++) {
+      lines.push(`**${i}日目**`);
+      if (i === 1) {
+        lines.push("- 午前：移動・チェックイン（出発地未確認のためルート要確認）");
+        lines.push("- 昼食：到着エリア周辺の飲食店（混雑を避け早めの入店推奨）");
+        lines.push("- 午後：候補スポット①（research結果の候補スポットから選定）");
+        lines.push("- 夕食：候補スポット付近の飲食店（要事前予約）");
+        lines.push("- 宿泊：（宿泊先要確認）");
+      } else if (i === days) {
+        lines.push("- 午前：候補スポット②（午前中の早い時間に移動・見学）");
+        lines.push("- 昼食：帰路付近の飲食店");
+        lines.push("- 午後：帰路（混雑を避けるため早めの出発推奨）");
+        lines.push("- 夕食：帰路または自宅付近");
+      } else {
+        lines.push("- 午前：候補スポット③（開園直後の入場で混雑回避）");
+        lines.push("- 昼食：スポット内または周辺（ピーク時間を外す）");
+        lines.push("- 午後：散策・休憩（子どもの疲れに応じて調整）");
+        lines.push("- 夕食：エリア周辺の飲食店（事前予約推奨）");
+        lines.push("- 宿泊：（宿泊先要確認）");
+      }
+      lines.push("");
+    }
+  } else {
+    lines.push("- 日程未確定のため、旅程は確認後に組み立てます。");
+    lines.push("");
+  }
+
+  if (researchFields.spots) {
+    lines.push("### 候補スポット（research結果より）");
+    lines.push("");
+    lines.push(researchFields.spots);
+    lines.push("");
+  }
+
+  if (researchFields.transport) {
+    lines.push("### 移動観点（research結果より）");
+    lines.push("");
+    lines.push(researchFields.transport);
+    lines.push("");
+  }
+
+  if (researchFields.kids) {
+    lines.push("### 子連れ観点（research結果より）");
+    lines.push("");
+    lines.push(researchFields.kids);
+    lines.push("");
+  }
+
+  if (researchFields.food) {
+    lines.push("### 食事観点（research結果より）");
+    lines.push("");
+    lines.push(researchFields.food);
+    lines.push("");
+  }
+
+  if (researchFields.cautions) {
+    lines.push("### 注意点（research結果より）");
+    lines.push("");
+    lines.push(researchFields.cautions);
+    lines.push("");
+  }
+
+  lines.push(`> ※ このたたき台は research 部門の仮調査結果をもとに構成しています。`);
+  lines.push(`> 「未確認」項目を依頼者と確認の上、内容を更新してください。`);
+
+  return lines.join("\n");
+}
+
+/**
+ * company/marketing/shiori.md の内容を生成する
+ * researchFields が渡された場合はそちらを優先する
+ */
+function generateShioriContent(caseId, pmFields, dateStr, researchFields) {
+  const { title, request, purpose, output, constraints } = pmFields;
 
   const shioriTitle = request || title || caseId;
   const audience = inferAudience(request || "", constraints || "");
-  const draft = buildDraftContent(request || "", purpose || "", output || "", constraints || "");
+  const draft = researchFields
+    ? buildDraftContentFromResearch(pmFields, researchFields, dateStr)
+    : buildDraftContent(request || "", purpose || "", output || "", constraints || "");
   const nextQ = buildNextQuestions(request || "", purpose || "", output || "", constraints || "");
+
+  const researchNote = researchFields
+    ? `research結果：company/research/RESULTS/${caseId}.md`
+    : "research：未実施（PM案件のみで生成）";
 
   return `# しおり：${shioriTitle}
 
 生成日時：${dateStr}
 元案件：${caseId}
+${researchNote}
 
 ---
 
@@ -407,7 +722,7 @@ ${audience}
 
 1. 本しおりのたたき台を依頼者に確認してもらう
 2. 「次に確認したいこと」の不足情報を埋める
-3. research 部門で情報収集を行う（必要な場合）
+3. 必要に応じて research 部門で追加調査を行う
 4. analysis 部門で内容を整理する（必要な場合）
 5. marketing 部門が最終成果物に仕上げる
 6. qa 部門で品質チェックを行う
@@ -428,6 +743,7 @@ ${nextQ}
 
 /**
  * POST /api/generate-shiori ハンドラ
+ * PM案件 → research依頼票 → research結果 → shiori の3ステップで生成する
  */
 async function handleGenerateShiori(req, res) {
   let data = {};
@@ -451,21 +767,35 @@ async function handleGenerateShiori(req, res) {
 
   try {
     const pmContent = fs.readFileSync(pmFilePath, "utf8");
-    const fields = parsePmCaseFile(pmContent);
+    const pmFields = parsePmCaseFile(pmContent);
     const dateStr = nowStr();
-    const shioriContent = generateShioriContent(caseId, fields, dateStr);
+
+    // ステップ1：research依頼票を生成
+    const researchRequestFile = createResearchRequest(caseId, pmFields, dateStr);
+    const researchRequestRelative = `company/research/REQUESTS/${caseId}.md`;
+
+    // ステップ2：research結果（仮）を生成
+    const researchResultFile = createResearchResult(caseId, pmFields, dateStr);
+    const researchResultRelative = `company/research/RESULTS/${caseId}.md`;
+
+    // ステップ3：research結果を読み込んでしおりを生成
+    const researchContent = fs.readFileSync(researchResultFile, "utf8");
+    const researchFields = parseResearchResultFile(researchContent);
 
     if (!fs.existsSync(MARKETING_DIR)) {
       fs.mkdirSync(MARKETING_DIR, { recursive: true });
     }
+    const shioriContent = generateShioriContent(caseId, pmFields, dateStr, researchFields);
     fs.writeFileSync(SHIORI_PATH, shioriContent, "utf8");
 
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({
       success: true,
       caseId,
+      researchRequestFile: researchRequestRelative,
+      researchResultFile: researchResultRelative,
       outputFile: "company/marketing/shiori.md",
-      message: `${caseId} のしおりを生成しました → company/marketing/shiori.md`
+      message: `${caseId} の research → shiori を生成しました`
     }));
   } catch (e) {
     console.error("generate-shiori エラー:", e);
