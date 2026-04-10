@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node -e ':*)",
+      "Bash(curl -s -X POST http://localhost:3000/api/company-intake -H 'Content-Type: application/json' -d '{\"request\":\"テスト依頼：AIカンパニーの動作確認\",\"purpose\":\"フロー全体が正常に動くか確認したい\",\"output\":\"受付番号と各ファイルの生成確認\",\"constraints\":\"今回はテスト実行のみ\"}')",
+      "Bash(node server.js)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(node:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(taskkill /F /IM node.exe)"
+    ]
+  }
+}

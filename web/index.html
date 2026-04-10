@@ -54,8 +54,14 @@
       grid-template-columns: 1fr 1fr;
       gap: 16px;
     }
-    button {
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
       margin-top: 20px;
+      align-items: center;
+    }
+    button {
       padding: 12px 18px;
       border: none;
       border-radius: 10px;
@@ -66,6 +72,13 @@
     }
     button:hover {
       opacity: 0.92;
+    }
+    button.primary {
+      background: #1d4ed8;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     pre {
       background: #0f172a;
@@ -80,6 +93,58 @@
       color: #555;
       font-size: 13px;
       margin-top: 6px;
+    }
+    /* 送信結果カード */
+    .result-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+      display: none;
+    }
+    .result-card.success {
+      border-left: 6px solid #16a34a;
+    }
+    .result-card.error {
+      border-left: 6px solid #dc2626;
+    }
+    .result-card h2 {
+      margin-top: 0;
+    }
+    .result-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .result-list li {
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 14px;
+    }
+    .result-list li:last-child {
+      border-bottom: none;
+    }
+    .result-list .label {
+      font-weight: 600;
+      color: #555;
+      display: inline-block;
+      min-width: 140px;
+    }
+    .case-id {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1d4ed8;
+      margin: 8px 0 16px;
+    }
+    .error-msg {
+      color: #dc2626;
+      font-weight: 600;
+    }
+    .sending-indicator {
+      color: #888;
+      font-size: 14px;
+      display: none;
     }
   </style>
 </head>
@@ -106,8 +171,12 @@
       <label for="constraints">制約条件</label>
       <textarea id="constraints" placeholder="例: 新幹線利用、ベビーカー前提、予算3万円以内"></textarea>
 
-      <button id="buildBtn">依頼を整形する</button>
-      <div class="hint">ボタンを押すと、表面依頼、真の課題、回すべき部署、仮判定を出します。</div>
+      <div class="btn-row">
+        <button id="buildBtn">依頼を整形する</button>
+        <button id="sendBtn" class="primary">AIカンパニーへ送る</button>
+        <span class="sending-indicator" id="sendingIndicator">送信中...</span>
+      </div>
+      <div class="hint">「依頼を整形する」で内容を確認してから、「AIカンパニーへ送る」で社内フローを起動します。</div>
     </div>
 
     <div class="card">
@@ -115,9 +184,17 @@
       <pre id="result">ここに結果が出ます</pre>
       <button id="copyBtn">結果をコピー</button>
     </div>
+
+    <!-- 送信結果カード -->
+    <div class="result-card" id="intakeResultCard">
+      <h2 id="intakeResultTitle"></h2>
+      <div id="intakeResultBody"></div>
+    </div>
   </div>
 
   <script>
+    // ---- 依頼整形ロジック（既存） ----
+
     function includesAny(text, words) {
       return words.some(word => text.includes(word));
     }
@@ -198,6 +275,68 @@
       const text = document.getElementById("result").textContent;
       await navigator.clipboard.writeText(text);
       alert("コピーしました");
+    });
+
+    // ---- AIカンパニーへ送る ----
+
+    document.getElementById("sendBtn").addEventListener("click", async () => {
+      const request = document.getElementById("request").value.trim();
+      const purpose = document.getElementById("purpose").value.trim();
+      const output = document.getElementById("output").value.trim();
+      const constraints = document.getElementById("constraints").value.trim();
+
+      if (!request) {
+        alert("依頼内容を入力してください");
+        return;
+      }
+
+      const sendBtn = document.getElementById("sendBtn");
+      const indicator = document.getElementById("sendingIndicator");
+      const card = document.getElementById("intakeResultCard");
+
+      sendBtn.disabled = true;
+      indicator.style.display = "inline";
+      card.style.display = "none";
+
+      try {
+        const res = await fetch("/api/company-intake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ request, purpose, output, constraints })
+        });
+        const json = await res.json();
+
+        card.className = "result-card " + (json.success ? "success" : "error");
+        card.style.display = "block";
+
+        if (json.success) {
+          document.getElementById("intakeResultTitle").textContent = "受付完了 — AIカンパニーのフローが起動しました";
+          document.getElementById("intakeResultBody").innerHTML = `
+            <div class="case-id">${json.caseId}</div>
+            <ul class="result-list">
+              <li><span class="label">受付番号</span>${json.caseId}</li>
+              <li><span class="label">受付保存先</span>${json.receptionFile}</li>
+              <li><span class="label">秘書への反映</span>${json.secretaryInbox}</li>
+              <li><span class="label">秘書テンプレ更新</span>${json.secretaryTemplate}</li>
+              <li><span class="label">PM起票</span>${json.pmCase}</li>
+              <li><span class="label">PMキュー追加</span>${json.pmQueue}</li>
+            </ul>
+          `;
+        } else {
+          document.getElementById("intakeResultTitle").textContent = "送信失敗";
+          document.getElementById("intakeResultBody").innerHTML =
+            `<p class="error-msg">${json.message || "不明なエラーが発生しました"}</p>`;
+        }
+      } catch (e) {
+        card.className = "result-card error";
+        card.style.display = "block";
+        document.getElementById("intakeResultTitle").textContent = "通信エラー";
+        document.getElementById("intakeResultBody").innerHTML =
+          `<p class="error-msg">サーバーへの接続に失敗しました: ${e.message}</p>`;
+      } finally {
+        sendBtn.disabled = false;
+        indicator.style.display = "none";
+      }
     });
   </script>
 </body>
