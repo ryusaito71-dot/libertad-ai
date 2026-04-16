@@ -1,8 +1,8 @@
 # しおり：ゴールデンウィークの家族旅行２泊３日の横浜旅行のしおりを作成して
 
-生成日時：2026-04-11 19:06
+生成日時：2026-04-16 10:21
 元案件：CASE_002
-research結果：company/research/RESULTS/CASE_002.md
+research結果：cases/CASE_002/research/result.md
 
 ---
 
